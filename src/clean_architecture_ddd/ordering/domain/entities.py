@@ -11,8 +11,21 @@ class OrderItem:
     unit_price: Money
     quantity: int = 1
 
+    def __post_init__(self) -> None:
+        if self.quantity <= 0:
+            raise ValueError("Quantity must be positive.")
+
     def subtotal(self) -> Money:
         return self.unit_price * self.quantity
+
+    def with_added_quantity(self, additional: int) -> "OrderItem":
+        if additional <= 0:
+            raise ValueError("Additional quantity must be positive.")
+        return OrderItem(
+            product_id=self.product_id,
+            unit_price=self.unit_price,
+            quantity=self.quantity + additional,
+        )
 
 
 @dataclass
@@ -28,4 +41,9 @@ class Order:
         return total
 
     def add_item(self, item: OrderItem) -> None:
-        self.items.append(item)
+        for index, existing in enumerate(self.items):
+            if existing.product_id == item.product_id:
+                self.items[index] = existing.with_added_quantity(item.quantity)
+                break
+        else:
+            self.items.append(item)

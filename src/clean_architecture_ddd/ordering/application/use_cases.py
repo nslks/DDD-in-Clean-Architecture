@@ -53,8 +53,9 @@ class CreateOrderUseCase:
         if not item_dtos:
             raise ValueError("Order requires at least one item.")
 
-        order_items = [dto.to_domain() for dto in item_dtos]
-        order = Order(id=self.order_repository.next_id(), user_id=user_id, items=order_items)
+        order = Order(id=self.order_repository.next_id(), user_id=user_id)
+        for dto in item_dtos:
+            order.add_item(dto.to_domain())
         self.order_repository.save(order)
 
         total = order.total()
