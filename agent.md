@@ -169,15 +169,6 @@ Das Projekt ist **fertig**, wenn:
 
 ---
 
-## 8. Erweiterung (optional)
-- Füge `main.py` hinzu, der `CreateOrderUseCase` aufruft und den berechneten Gesamtpreis in der Konsole ausgibt.  
-- Optional kann eine minimale CLI integriert werden, z. B.:
-  ```
-  python main.py --user 1 --items '[{"price":10},{"price":20}]'
-  ```
-
----
-
 **Endziel:**  
 Ein didaktisch sauberes, testbares Python-Projekt, das zeigt, wie DDD Clean Architecture verbessert –  
 mit vollständigem Code, Tests, und klar erkennbarer Evolution innerhalb des Projekts.
