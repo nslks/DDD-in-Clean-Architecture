@@ -18,6 +18,14 @@ Dieses Projekt stellt zwei Implementierungen eines Bestell-Workflows nebeneinand
 - **Bounded Contexts**: Fachlich kohärente Bereiche werden getrennt gedacht und implementiert.
 - **Services & Repositories**: Domänenlogik bleibt unabhängig von Infrastruktur.
 
+### Abbildung im Projekt
+- **Value Object** → `Money` (`src/clean_architecture_ddd/ordering/domain/value_objects.py`) hält Beträge konsistent und rundet korrekt.
+- **Entities / Aggregate** → `Order` und `OrderItem` (`src/clean_architecture_ddd/ordering/domain/entities.py`) wahren Mengen, fassen gleiche Produkte zusammen und berechnen das Total.
+- **Domain Service** → `DiscountService` (`src/clean_architecture_ddd/pricing/domain/discount_service.py`) kapselt Rabattregeln außerhalb des Order-Aggregats.
+- **Repository-Vertrag** → `OrderRepository` (`src/clean_architecture_ddd/ordering/domain/repositories.py`) definiert die Fachschnittstelle, In-Memory-Implementierung steckt in der Infrastruktur.
+- **Bounded Contexts** → `ordering` und `pricing` innerhalb von `src/clean_architecture_ddd/` trennen Bestell- und Preislogik.
+- **Application Layer** → `CreateOrderUseCase` (`src/clean_architecture_ddd/ordering/application/use_cases.py`) orchestriert die Domäne, ohne Fachlogik zu enthalten.
+
 ## Übergang zur DDD-Variante
 - Das DDD-Beispiel (`src/clean_architecture_ddd/`) verschiebt Logik aus dem Application Layer in die Domain:
   - `Money` kümmert sich um Währungsrundung und Vergleichbarkeit.
