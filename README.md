@@ -1,76 +1,136 @@
-# Clean Architecture → Domain-Driven Design
+# Clean Architecture und Domain-Driven Design
 
-Dieses Projekt stellt zwei Implementierungen eines Bestell-Workflows nebeneinander: eine klassische Clean Architecture als Ausgangspunkt und eine erweiterte Variante, in der Domain-Driven Design (DDD) die Fachlichkeit in den Mittelpunkt rückt.
+_Ein praktischer Vergleich mit FastAPI
 
-## Clean Architecture in Kürze
-- **Stärken**: Saubere Layer (Application, Domain, Infrastructure), klare Abhängigkeitsrichtung, austauschbare Infrastruktur.
-- **Wofür sie gut ist**: Trennung von Anwendungslogik und Technik, bessere Wartbarkeit, klare Use-Case-orientierte Abläufe.
-- **Was fehlt**: Die Domain bleibt dünn. Fachregeln landen im Application Layer, primitive Typen repräsentieren Fachwerte, Tests prüfen eher Flüsse als Sprache und Regeln.
+---
 
-## Tests vs. Fachliche Tiefe
-- In der Baseline-Version (`src/clean_architecture/`) addiert der Use Case Preise direkt und speichert Orders über ein Repository.
-- Tests müssen Use Case und Repository gemeinsam ausführen – der Fokus liegt auf Integration statt auf fachlicher Präzision.
-- Ohne explizite Domain-Modelle lassen sich Invarianten, Rundungen oder komplexere Regeln schwer isoliert prüfen.
+## Ziel
 
-## Was ist Domain-Driven Design?
-- **Ubiquitous Language**: Gemeinsame Fachsprache zwischen Domänenexperten und Entwicklern.
-- **Modelle im Code**: Value Objects, Entities und Aggregate transportieren Regeln und Zusammenhänge.
-- **Bounded Contexts**: Fachlich kohärente Bereiche werden getrennt gedacht und implementiert.
-- **Services & Repositories**: Domänenlogik bleibt unabhängig von Infrastruktur.
+Wir wollen verstehen:
 
-### Abbildung im Projekt
-- **Value Object** → `Money` (`src/clean_architecture_ddd/ordering/domain/value_objects.py`) hält Beträge konsistent und rundet korrekt.
-- **Entities / Aggregate** → `Order` und `OrderItem` (`src/clean_architecture_ddd/ordering/domain/entities.py`) wahren Mengen, fassen gleiche Produkte zusammen und berechnen das Total.
-- **Domain Service** → `DiscountService` (`src/clean_architecture_ddd/pricing/domain/discount_service.py`) kapselt Rabattregeln außerhalb des Order-Aggregats.
-- **Repository-Vertrag** → `OrderRepository` (`src/clean_architecture_ddd/ordering/domain/repositories.py`) definiert die Fachschnittstelle, In-Memory-Implementierung steckt in der Infrastruktur.
-- **Bounded Contexts** → `ordering` und `pricing` innerhalb von `src/clean_architecture_ddd/` trennen Bestell- und Preislogik.
-- **Application Layer** → `CreateOrderUseCase` (`src/clean_architecture_ddd/ordering/application/use_cases.py`) orchestriert die Domäne, ohne Fachlogik zu enthalten.
+- Was Clean Architecture leistet
+- Wo ihre Schwächen liegen  
+- Wie Domain-Driven Design (DDD) diese Lücken füllt  
+- Wie das Ganze im Code aussieht
 
-## Übergang zur DDD-Variante
-- Das DDD-Beispiel (`src/clean_architecture_ddd/`) verschiebt Logik aus dem Application Layer in die Domain:
-  - `Money` kümmert sich um Währungsrundung und Vergleichbarkeit.
-  - `OrderItem` validiert Mengen und kann bestehende Posten zusammenführen.
-  - `Order` berechnet Summen, verwaltet Items und bleibt Herr über seine Invarianten.
-  - `DiscountService` kapselt fachliche Rabatte im Pricing-Kontext.
-  - Der Use Case orchestriert nur noch Domainobjekte und verbindet Ordering und Pricing.
-- Die Tests fokussieren sich jetzt auf die Domain selbst – Infrastruktur wird substituierbar.
+---
 
-## Projektstruktur
-```
-src/
-├── clean_architecture/               # Baseline
-│   ├── domain/entities.py
-│   ├── application/create_order.py
-│   └── infrastructure/order_repository_sql.py
-└── clean_architecture_ddd/           # DDD-Weiterentwicklung
-    ├── ordering/
-    │   ├── domain/{entities,value_objects,repositories}.py
-    │   ├── application/use_cases.py
-    │   └── infrastructure/order_repository_inmemory.py
-    └── pricing/domain/discount_service.py
-tests/
-├── clean_architecture/test_create_order.py
-└── clean_architecture_ddd/
-    ├── ordering/{test_order_entity,test_order_usecase}.py
-    └── pricing/test_discount_service.py
+## Ausgangspunkt
+
+**Clean Architecture** trennt Schichten:
+
+- **Interface (API)** – Kommunikation nach außen  
+- **Application** – Use Cases / Ablaufsteuerung  
+- **Domain** – Geschäftslogik  
+- **Infrastructure** – technische Details (z. B. DB)
+
+Aber: Clean Architecture sagt **nicht**, wie die Geschäftslogik **fachlich** aufgebaut sein sollte.
+
+---
+
+## Problem ohne Clean Architecture
+
+In vielen Projekten sieht der Code so aus:
+
+```python
+# app/interface/api.py
+@app.post("/orders")
+def create_order(order_data: dict):
+    total = sum(item["price"] * item["quantity"] for item in order_data["items"])
+    if total < 0:
+        raise ValueError("Total must be positive")
+    order_id = save_to_db(order_data, total)
+    return {"order_id": order_id}
 ```
 
-## Virtuelle Umgebung & Abhängigkeit
-```bash
-python3 -m venv .venv
-source .venv/bin/activate            # Windows: .venv\Scripts\activate
-pip install --upgrade pip
-pip install pytest
-```
-Die vorbereitete Umgebung `.venv/` liegt bereits im Projekt – einfach aktivieren und Pytest installieren.
+### Schwächen
 
-## Tests ausführen
-```bash
-pytest -v
+- Fachlogik liegt im API-Endpoint
+- Keine klaren Domänenregeln  
+- Schwer testbar  
+- Kein „Fachmodell“, nur Datenstrukturen
+
+---
+
+## Schritt 1: Clean Architecture anwenden
+
+Wir trennen Schichten technisch.
+
+```python
+# app/application/create_order.py
+def create_order(order_data, repo):
+    items = [OrderItem(**item) for item in order_data["items"]]
+    total = sum(i.price * i.quantity for i in items)
+    if total <= 0:
+        raise ValueError("Total must be positive")
+
+    order = Order(id=None, items=items, total=total)
+    return repo.save(order)
 ```
 
-## Optionale CLI
-`main.py` ruft den DDD-Use-Case aus einer einfachen CLI heraus auf:
-```bash
-python main.py --user 1 --items '[{"product_id": 1, "price": 10}, {"product_id": 2, "price": 20}]' --discount 10
-```
+### Ergebnis
+
+- **Vorteil:** Struktur sauber  
+- **Schwäche:** Fachlogik bleibt im Use Case, Domain ist passiv  
+
+---
+
+## Schritt 2: DDD ergänzt die Clean Architecture
+
+### Wann DDD sinnvoll ist
+
+Nur, wenn:
+
+- Die Domäne **komplex** ist.
+- Eine gemeinsame, eindeutige Sprache zwischen Entwicklern und Fachexperten notwendig ist.
+
+### Ein Beispiel für einen guten Anwendungsfall
+
+- Eine Verischerungsplattform
+  - Es gibt viele Fachbegriffe: Police, Tarif, Schadenfall, Risikoklasse, Selbstbeteiligung, Leistungsfall usw.
+  - Fachabteilungen sprechen täglich in diesen Begriffen.
+  - Benutzen Entwikckler dafür ihre eigenen Begriffe (customer_contract statt Police) verschlechtert das die Kommunikation.
+- DDD hilft hier
+  - Sprache = Modell. Die Domäne innerhalb der Anwendung spiegelt die reale Fachwelt.
+  - Fachabteilungen und Entwickler können nicht anders als die selben Begriffe zu benutzen.
+
+### Integration von DDD in Clean Architecture im Repo-Quellcode
+
+---
+
+### DDD-Kernelemente
+
+- **Entities** – Objekte mit Identität  
+- **Aggregates** – konsistente Gruppen von Entities  
+- **Repositories** – Schnittstellen zur Datenhaltung  
+
+---
+
+## Vergleich
+
+| Aspekt | Nur Clean Architecture | Mit DDD |
+|--------|------------------------|----------|
+| **Struktur** | Technisch klar | Fachlich & technisch klar |
+| **Domain Layer** | Datencontainer | Intelligente Objekte |
+| **Businesslogik** | In Use Cases | In Domain |
+| **Testbarkeit** | Mittel | Hoch |
+| **Fachsprache** | Fehlend | Klar definiert |
+| **Wartbarkeit** | Gut bei kleiner Domäne | Besser bei wachsender Komplexität |
+
+---
+
+## Codefluss im DDD-Beispiel
+
+```API → Application (Use Case) → Domain (Order, OrderItem) → Repository```
+
+- API löst Use Case aus  
+- Application orchestriert nur  
+- Domain enthält alle Regeln  
+- Repository speichert Ergebnis
+
+---
+
+## Fazit
+
+- Clean Architecture trennt und strukturiert den Code **technisch**.  
+- DDD bringt **fachliche** Tiefe in die Anwendung.
