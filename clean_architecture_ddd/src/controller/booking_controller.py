@@ -4,7 +4,7 @@ class BookingController:
     def __init__(self, repo):
         self.repo = repo
 
-    def execute(self, room_id, customer_name, start_date, end_date):
+    def create_booking(self, room_id, customer_name, start_date, end_date):
         new_booking = Booking(
             room_id=room_id,
             customer_name=customer_name,

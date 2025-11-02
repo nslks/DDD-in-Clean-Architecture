@@ -1,9 +1,5 @@
 # Clean Architecture und Domain-Driven Design
 
-_Ein praktischer Vergleich mit FastAPI
-
----
-
 ## Ziel
 
 Wir wollen verstehen:
@@ -20,9 +16,9 @@ Wir wollen verstehen:
 **Clean Architecture** trennt Schichten:
 
 - **Interface (API)** – Kommunikation nach außen  
-- **Application** – Use Cases / Ablaufsteuerung  
-- **Domain** – Geschäftslogik  
-- **Infrastructure** – technische Details (z. B. DB)
+- **Controller/Application/etc. u name it** – Use Cases / Ablaufsteuerung  
+- **Domain** – Datenobjekte  
+- **Repository** – DB zugriff
 
 Aber: Clean Architecture sagt **nicht**, wie die Geschäftslogik **fachlich** aufgebaut sein sollte.
 
@@ -33,7 +29,7 @@ Aber: Clean Architecture sagt **nicht**, wie die Geschäftslogik **fachlich** au
 In vielen Projekten sieht der Code so aus:
 
 ```python
-# app/interface/api.py
+# src/interface/api.py
 @app.post("/orders")
 def create_order(order_data: dict):
     total = sum(item["price"] * item["quantity"] for item in order_data["items"])
@@ -57,15 +53,39 @@ def create_order(order_data: dict):
 Wir trennen Schichten technisch.
 
 ```python
-# app/application/create_order.py
-def create_order(order_data, repo):
-    items = [OrderItem(**item) for item in order_data["items"]]
-    total = sum(i.price * i.quantity for i in items)
-    if total <= 0:
-        raise ValueError("Total must be positive")
+# src/controller/bookingcontroller.py
+    def create_booking(self, room_id, customer_name, start_date, end_date):
+        
+        # erste fachliche Regel
+        if self._booking_lasts_longer_than_max_days(start_date, end_date):
+            raise ValueError(f"Booking too long")
+        
+        # zweite fachliche Regel: Überschneidungen prüfen (innerhalb Use Case)
+        for existing in self.repo.all():
+            if self._room_not_available(existing, room_id, start_date, end_date):
+                raise ValueError("Room not available for given dates")
+            
+        booking = Booking(
+            id=0,
+            room_id=room_id,
+            customer_name=customer_name,
+            start_date=start_date,
+            end_date=end_date
+        )
 
-    order = Order(id=None, items=items, total=total)
-    return repo.save(order)
+        return self.repo.save(booking)
+    
+    def _booking_lasts_longer_than_max_days(self, start_date, end_date):
+        max_allowed_day = 10
+
+        days = (end_date - start_date).days
+        return days > max_allowed_day
+    
+    def _room_not_available(self, existing, room_id, start_date, end_date):
+        same_room = existing.room_id == room_id
+        overlapping = not (end_date <= existing.start_date or start_date >= existing.end_date)
+        return same_room and overlapping
+
 ```
 
 ### Ergebnis
@@ -84,7 +104,29 @@ Nur, wenn:
 - Die Domäne **komplex** ist.
 - Eine gemeinsame, eindeutige Sprache zwischen Entwicklern und Fachexperten notwendig ist.
 
-### Ein Beispiel für einen guten Anwendungsfall
+### Integration von DDD in Clean Architecture
+
+```python
+# src/controller/bookingcontroller.py
+    def create_booking(self, room_id, customer_name, start_date, end_date):
+        new_booking = Booking(
+            room_id=room_id,
+            customer_name=customer_name,
+            start_date=start_date,
+            end_date=end_date
+        )
+
+        for existing in self.repo.all():
+            if new_booking.overlaps(existing):
+                raise ValueError("Room not available for given dates")
+
+        return self.repo.save(new_booking)
+
+# src/domain/booking.py
+  Geschäftslogik hier
+```
+
+### Ein echtes Beispiel für einen guten Anwendungsfall
 
 - Eine Verischerungsplattform
   - Es gibt viele Fachbegriffe: Police, Tarif, Schadenfall, Risikoklasse, Selbstbeteiligung, Leistungsfall usw.
@@ -94,14 +136,12 @@ Nur, wenn:
   - Sprache = Modell. Die Domäne innerhalb der Anwendung spiegelt die reale Fachwelt.
   - Fachabteilungen und Entwickler können nicht anders als die selben Begriffe zu benutzen.
 
-### Integration von DDD in Clean Architecture im Repo-Quellcode
-
 ---
 
 ### DDD-Kernelemente
 
-- **Entities** – Objekte mit Identität  
-- **Aggregates** – konsistente Gruppen von Entities  
+- **Entities** – Objekte mit Identität
+- **Value Objects**, **Aggregates** etc.
 - **Repositories** – Schnittstellen zur Datenhaltung  
 
 ---
@@ -116,17 +156,6 @@ Nur, wenn:
 | **Testbarkeit** | Mittel | Hoch |
 | **Fachsprache** | Fehlend | Klar definiert |
 | **Wartbarkeit** | Gut bei kleiner Domäne | Besser bei wachsender Komplexität |
-
----
-
-## Codefluss im DDD-Beispiel
-
-```API → Application (Use Case) → Domain (Order, OrderItem) → Repository```
-
-- API löst Use Case aus  
-- Application orchestriert nur  
-- Domain enthält alle Regeln  
-- Repository speichert Ergebnis
 
 ---
 
