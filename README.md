@@ -161,9 +161,60 @@ Nur, wenn:
 
 - **Entities** – Objekte mit Identität
 - **Value Objects**, **Aggregates** etc.
-- **Repositories** – Schnittstellen zur Datenhaltung  
+- **Repositories** – Schnittstellen zur Datenhaltung
 
 ---
+
+### Vergleich in der Testbarkeit 
+
+- Bei **Clean Architecture** komplex
+- Repository muss gemockt werden, Controller aufwändig erstellt
+
+```python
+@pytest.fixture
+def controller():
+    repo = BookingRepository()
+    return BookingController(repo)
+
+def test_booking_overlap(controller):
+    # erste Buchung erfolgreich
+    controller.create_booking(
+        room_id=1,
+        customer_name="Alice",
+        start_date=date(2025, 11, 1),
+        end_date=date(2025, 11, 5)
+    )
+
+    # zweite überlappt -> Fehler
+    with pytest.raises(ValueError, match="Room not available"):
+        controller.create_booking(
+            room_id=1,
+            customer_name="Bob",
+            start_date=date(2025, 11, 3),
+            end_date=date(2025, 11, 6)
+        )
+```
+
+- Bei DDD können einfache Unit-Tests auf ebene der Domäne erstellt werden ohne komplexe Abhänigkeiten zu initialisieren
+
+```python
+def test_booking_overlap():
+    booking1 = Booking(
+        booking_id=1,
+        room_id=1,
+        customer_name="Alice",
+        start_date=date(2025, 11, 1),
+        end_date=date(2025, 11, 5)
+    )
+    booking2 = Booking(
+        booking_id=2,
+        room_id=1,
+        customer_name="Bob",
+        start_date=date(2025, 11, 3),
+        end_date=date(2025, 11, 6)
+    )
+    assert b1.overlaps(b2)
+```
 
 ## Vergleich
 
