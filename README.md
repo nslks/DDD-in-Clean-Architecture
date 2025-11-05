@@ -15,7 +15,7 @@ Wir wollen verstehen:
 
 **Clean Architecture** trennt Schichten:
 
-- **Interface (API)** – Kommunikation nach außen  
+- **API** – Kommunikation nach außen  
 - **Controller/Application/etc. u name it** – Use Cases / Ablaufsteuerung  
 - **Domain** – Datenobjekte  
 - **Repository** – DB zugriff
@@ -26,17 +26,30 @@ Aber: Clean Architecture sagt **nicht**, wie die Geschäftslogik **fachlich** au
 
 ## Problem ohne Clean Architecture
 
-In vielen Projekten sieht der Code so aus:
+Typisches Anti-Pattern:
 
 ```python
-# src/interface/api.py
-@app.post("/orders")
-def create_order(order_data: dict):
-    total = sum(item["price"] * item["quantity"] for item in order_data["items"])
-    if total < 0:
-        raise ValueError("Total must be positive")
-    order_id = save_to_db(order_data, total)
-    return {"order_id": order_id}
+# src/api.py
+@app.post("/bookings")
+def create_booking(booking_data: dict):
+    start_date = booking_data["start_date"]
+    end_date = booking_data["end_date"]
+    room_id = booking_data["room_id"]
+    customer_name = booking_data["customer_name"]
+
+    # erste fachliche Regel: Buchung darf nicht zu lang sein
+    max_allowed_day = 10
+    days = (end_date - start_date).days
+    if days > max_allowed_day:
+        raise ValueError("Booking too long")
+
+    booking_id = save_to_db({
+        "room_id": room_id,
+        "customer_name": customer_name,
+        "start_date": start_date,
+        "end_date": end_date
+    })
+    return {"booking_id": booking_id}
 ```
 
 ### Schwächen
@@ -91,11 +104,24 @@ Wir trennen Schichten technisch.
 ### Ergebnis
 
 - **Vorteil:** Struktur sauber  
-- **Schwäche:** Fachlogik bleibt im Use Case, Domain ist passiv  
+- **Schwäche:** Fachlogik bleibt im Use Case, Domain ist passiv, Tests erfordern Mockup des Repositories
 
 ---
 
 ## Schritt 2: DDD ergänzt die Clean Architecture
+
+### Wichtiger Disclaimer
+
+Das Beispiel im Repository ist bewusst einfach gehalten, um den Unterschied zwischen Clean Architecture und DDD zu zeigen. In echten Projekten mit komplexer Domäne stößt man schnell auf weitere DDD-Konzepte.
+
+- **Value Objects**
+- **Aggregates**
+- **Bounded Contexts**
+- **Domain Services**
+
+### Was DDD im Kern aussagt
+
+Domain Driven Design stellt das fachliche Modell und eine gemeinsame Sprache zwischen Entwicklern und Fachexperten ins Zentrum. Begriffe und Regeln der Fachwelt bestimmen Struktur im Code.
 
 ### Wann DDD sinnvoll ist
 
@@ -103,6 +129,17 @@ Nur, wenn:
 
 - Die Domäne **komplex** ist.
 - Eine gemeinsame, eindeutige Sprache zwischen Entwicklern und Fachexperten notwendig ist.
+
+### Ein echtes Beispiel für einen guten Anwendungsfall
+
+- Ein Plattform in der Energiewirtschaft
+  - Es gibt viele Fachbegriffe: Marktlokation, Messlokation, Zähler, Tarif, Smart-Meter-Gateway
+  - Fachabteilungen sprechen täglich in diesen Begriffen.
+- DDD hilft hier
+  - Sprache = Modell. Die Domäne innerhalb der Anwendung spiegelt die reale Fachwelt.
+  - Fachabteilungen und Entwickler können nicht anders als die selben Begriffe zu benutzen.
+
+---
 
 ### Integration von DDD in Clean Architecture
 
@@ -129,8 +166,8 @@ Nur, wenn:
             raise ValueError("end_date must be after start_date")
 
         duration = (end_date - start_date).days
-        if duration > MAX_BOOKING_DAYS:
-            raise ValueError(f"Booking cannot exceed {MAX_BOOKING_DAYS} days")
+        if duration > 10:
+            raise ValueError("Booking cannot exceed 10 days")
 
         self.id = booking_id
         self.room_id = room_id
@@ -144,24 +181,6 @@ Nur, wenn:
             self.end_date <= other.start_date or self.start_date >= other.end_date
         )
 ```
-
-### Ein echtes Beispiel für einen guten Anwendungsfall
-
-- Eine Verischerungsplattform
-  - Es gibt viele Fachbegriffe: Police, Tarif, Schadenfall, Risikoklasse, Selbstbeteiligung, Leistungsfall usw.
-  - Fachabteilungen sprechen täglich in diesen Begriffen.
-  - Benutzen Entwikckler dafür ihre eigenen Begriffe (customer_contract statt Police) verschlechtert das die Kommunikation.
-- DDD hilft hier
-  - Sprache = Modell. Die Domäne innerhalb der Anwendung spiegelt die reale Fachwelt.
-  - Fachabteilungen und Entwickler können nicht anders als die selben Begriffe zu benutzen.
-
----
-
-### DDD-Kernelemente
-
-- **Entities** – Objekte mit Identität
-- **Value Objects**, **Aggregates** etc.
-- **Repositories** – Schnittstellen zur Datenhaltung
 
 ---
 
@@ -199,21 +218,21 @@ def test_booking_overlap(controller):
 
 ```python
 def test_booking_overlap():
-    booking1 = Booking(
+    first_booking = Booking(
         booking_id=1,
         room_id=1,
         customer_name="Alice",
         start_date=date(2025, 11, 1),
         end_date=date(2025, 11, 5)
     )
-    booking2 = Booking(
+    second_booking = Booking(
         booking_id=2,
         room_id=1,
         customer_name="Bob",
         start_date=date(2025, 11, 3),
         end_date=date(2025, 11, 6)
     )
-    assert b1.overlaps(b2)
+    assert first_booking.overlaps(second_booking)
 ```
 
 ## Vergleich
